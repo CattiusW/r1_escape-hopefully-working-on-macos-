@@ -30,7 +30,25 @@ install_fedora() {
     [[ -x "$(command -v unzip)" ]] || sudo dnf install -y unzip
 }
 
-if [[ "$OSTYPE" == "linux-gnu"* ]]; then
+install_macos() {
+    # Check if Homebrew is installed
+    if ! command -v brew &>/dev/null; then
+        echo "[*] Installing Homebrew..."
+        /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+    fi
+    
+    brew update
+    [[ -x "$(command -v git)" ]] || brew install git
+    [[ -x "$(command -v python3)" ]] || brew install python3
+    [[ -x "$(command -v dos2unix)" ]] || brew install dos2unix
+    [[ -x "$(command -v curl)" ]] || brew install curl
+    [[ -x "$(command -v unzip)" ]] || brew install unzip
+    [[ -x "$(command -v adb)" ]] || brew install android-platform-tools
+}
+
+if [[ "$OSTYPE" == "darwin"* ]]; then
+    install_macos
+elif [[ "$OSTYPE" == "linux-gnu"* ]]; then
     if command -v apt-get &>/dev/null; then
         install_debian
     elif command -v pacman &>/dev/null; then
@@ -82,9 +100,17 @@ sudo python3 mtk r frp frp.bin
 
 sudo chown $USER frp.bin
 
-LAST_BYTE=$(xxd -p -l 1 -s -1 frp.bin)
+# Cross-platform file size and byte modification
+if [[ "$OSTYPE" == "darwin"* ]]; then
+    FILE_SIZE=$(stat -f%z frp.bin)
+    LAST_BYTE=$(xxd -p -l 1 -s $((FILE_SIZE - 1)) frp.bin)
+else
+    FILE_SIZE=$(stat -c%s frp.bin)
+    LAST_BYTE=$(xxd -p -l 1 -s -1 frp.bin)
+fi
+
 if [[ "$LAST_BYTE" == "00" ]]; then
-    printf '\x01' | dd of=frp.bin bs=1 seek=$(($(stat -c%s frp.bin) - 1)) conv=notrunc
+    printf '\x01' | dd of=frp.bin bs=1 seek=$((FILE_SIZE - 1)) conv=notrunc
 fi
 
 # Write FRP
